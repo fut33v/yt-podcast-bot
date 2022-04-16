@@ -2,7 +2,7 @@ import os
 
 import telegram.ext
 from telegram.ext import Updater, CommandHandler
-
+from yt_dlp import YoutubeDL
 
 def start_handler(update, context):
     message_text = """
@@ -15,7 +15,27 @@ def start_handler(update, context):
                              parse_mode=telegram.ParseMode.MARKDOWN)
 
 
+
+# yt-dlp -f 140 https://www.youtube.com/watch\?v\=h5pc2zA5enA
+def download_video(url: str):
+    # ydl_opts = {'format': 'bestaudio'}
+    # ydl_opts = {
+    #     '-f': 'ba',
+    #     '-x': True,
+    #     '--audio-format': 'mp3'
+    # }
+    # ydl_opts = {'format': 'bestaudio'}
+    ydl_opts = {'format': '140'}
+    with YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+# yt-dlp -f 140 -o "vtech.%(ext)s" -x --audio-format mp3 https://www.youtube.com/watch\?v\=gFT0BDIDFUg
+
 if __name__ == "__main__":
+
+    test_video = "https://www.youtube.com/watch?v=P1qBe_TIXhM"
+    download_video(test_video)
+    exit(0)
 
     token_telegram = os.getenv("BOT_TOKEN", None)
     if token_telegram is None:
@@ -31,5 +51,3 @@ if __name__ == "__main__":
     updater.start_polling()
     updater.idle()
 
-
-# yt-dlp -f 140 https://www.youtube.com/watch\?v\=h5pc2zA5enA
