@@ -1,0 +1,3 @@
+python-telegram-bot
+pika
+yt-dlp

@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.9-alpine
+
+RUN mkdir -p /home/app
+RUN addgroup -S app && adduser -S app -G app
+ENV HOME=/home/app
+WORKDIR $HOME
+
+RUN apk update && apk add curl gcc libc-dev
+
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+RUN chmod a+rx /usr/local/bin/yt-dlp
+
+COPY ./requirements.downloader.txt /home/app/requirements.txt
+USER app
+RUN pip install --upgrade pip
+RUN pip install -r /home/app/requirements.txt
+
+COPY --chown=app . yt-podcast-bot
+WORKDIR $HOME/yt-podcast-bot
+
+CMD ["python", "/home/app/yt-podcast-bot/downloader.py"]

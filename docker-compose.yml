@@ -1,0 +1,32 @@
+
+version: "3.9"
+services:
+
+  rabbit:
+    build: rabbit
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    # TODO: remove
+    ports:
+      - "15672:15672"
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 3; done; python bot.py"
+    environment:
+      - BOT_TOKEN
+
+  downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile.downloader
+    command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 3; done; python downloader.py"
+    depends_on:
+      - rabbit
+    environment:
+      AMQP_USER: user
+      AMQP_PASS: password
+      AMQP_HOST: rabbit
