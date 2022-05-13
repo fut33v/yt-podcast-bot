@@ -8,8 +8,8 @@ services:
       RABBITMQ_DEFAULT_USER: user
       RABBITMQ_DEFAULT_PASS: password
     # TODO: remove
-    ports:
-      - "15672:15672"
+    # ports:
+    #   - "15672:15672"
 
   bot:
     build:
