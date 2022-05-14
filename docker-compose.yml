@@ -15,7 +15,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.bot
-    command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 10; done; python bot.py"
+    command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 20; done; python bot.py"
     environment:
       - BOT_TOKEN
     restart: unless-stopped
@@ -24,7 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.downloader
-    command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 10; done; python downloader.py"
+    command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 20; done; python downloader.py"
     depends_on:
       - rabbit
     environment:
