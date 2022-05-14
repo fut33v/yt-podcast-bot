@@ -9,7 +9,7 @@ services:
       RABBITMQ_DEFAULT_PASS: password
     # ports:
     #   - "15672:15672"
-    restart: unless-stopped
+    # restart: unless-stopped
 
   bot:
     build:
