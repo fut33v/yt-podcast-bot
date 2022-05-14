@@ -41,16 +41,21 @@ class YtPodcastDownloader:
         self._handler = handler
 
     def download_video(self, url: str):
-        try:
-            parsed_url = urlparse(url)
-            video_id = parse_qs(parsed_url.query)['v'][0]
-        except KeyError:
-            logger.error("failed to parse url %s", url)
-            return False
+        parsed_url = urlparse(url)
+        if parsed_url.path == "/watch":
+            try:
+                parsed_url = urlparse(url)
+                video_id = parse_qs(parsed_url.query)['v'][0]
+            except KeyError:
+                logger.error("failed to parse url %s", url)
+                return False
+        else:
+            video_id = parsed_url.path[1:]
 
         filename = video_id
         yt_dlp_process = subprocess.Popen(
-            ["yt-dlp", "-f", "140", "-o", filename, url],
+            # ["yt-dlp", "-f", "140", "-o", filename, url],
+            ["yt-dlp", "-f", "139", "-o", filename, url],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         yt_dlp_process.wait()
         logger.info("yt-dlp return code: %s", yt_dlp_process.returncode)
