@@ -7,7 +7,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: user
       RABBITMQ_DEFAULT_PASS: password
-    # TODO: remove
+    restart: unless-stopped
     # ports:
     #   - "15672:15672"
 
@@ -18,6 +18,7 @@ services:
     command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 3; done; python bot.py"
     environment:
       - BOT_TOKEN
+    restart: unless-stopped
 
   downloader:
     build:
@@ -30,3 +31,4 @@ services:
       AMQP_USER: user
       AMQP_PASS: password
       AMQP_HOST: rabbit
+    restart: unless-stopped
