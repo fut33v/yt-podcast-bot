@@ -12,6 +12,7 @@ import telegram
 from yt_dlp import YoutubeDL
 import sys
 from threading import Thread, Lock
+import functools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -25,6 +26,7 @@ AMQP_HOST = os.getenv('AMQP_HOST', "rabbit")
 # TODO: check if live or check duration
 # if too big for telegram (50 mb) separate with ffmpeg
 # send messages to user
+# log to file and may be docker compose volume for it
 
 class GracefulKiller:
   kill_now = False
@@ -92,17 +94,18 @@ class TelegramBotReplier:
             bot.send_message(chat_id=self._chat_id, text=message, reply_to_message_id=self._reply_to_message_id)
         except telegram.TelegramError as e:
             logger.error(e)
+            return False
+        return True
 
     def send_audio(self, filename: str, title: str) -> str:
-        bot = telegram.Bot(token=self._bot_token)
-        for i in range(1, 3):
-            with open(filename, "rb") as f:
-                try:
-                    result = bot.send_audio(chat_id=self._chat_id, audio=f, title=title, timeout=300, reply_to_message_id=self._reply_to_message_id)
-                    logger.info(result)
-                    break
-                except telegram.error.NetworkError as e:
-                    logger.error("telegram network error: %s", e)
+        with open(filename, "rb") as f:
+            try:
+                bot = telegram.Bot(token=self._bot_token)
+                bot.send_audio(chat_id=self._chat_id, audio=f, title=title, timeout=300, reply_to_message_id=self._reply_to_message_id)
+            except telegram.error.TelegramError as e:
+                logger.error(e)
+                return False
+        return True
 
 
 class DownloaderLoop:
@@ -125,8 +128,6 @@ class DownloaderLoop:
         channel.basic_consume(queue='to_download_queue', on_message_callback=self._on_message)
         killer = GracefulKiller()
 
-        download_thread = Thread(target=self._downloader_thread, args=[killer])
-        download_thread.start()
         while not killer.kill_now:
             try:
                 channel.start_consuming()
@@ -138,48 +139,17 @@ class DownloaderLoop:
         if self._channel_is_open and self._channel is None:
             connection.close()
 
-        download_thread.join()
+        for t in self._threads:
+            t.join()
 
-    def _downloader_thread(self, killer):
-        while not killer.kill_now:
-            url = None
-            bot_token = None
-            chat_id = None
-            with self._mutex:
-                url = self._curr_url
-                bot_token = self._curr_bot_token
-                chat_id = self._curr_chat_id
-                reply_to_message_id = self._reply_to_message_id
-
-            if url is None or bot_token is None or chat_id is None:
-                time.sleep(1)
-                continue
-
-            yt_podcast_downloader = YtPodcastDownloader()
-            result = yt_podcast_downloader.download_video(url)
-            bot_replier = TelegramBotReplier(bot_token, chat_id, reply_to_message_id)
-
-            if not result:
-                logger.error("failed to download video")
-                bot_replier.send_message("Извините, не удалось скачать данное видео.")
-            else:
-                bot_replier.send_audio(filename=result.filename, title=result.title)
-                os.remove(result.filename)
-
-            with self._mutex:
-                self._curr_url = None
-                self._curr_bot_token = None
-                self._curr_chat_id = None
-
-
-    def _on_message(self, channel, method, properties, body):
+    def _parse_download_send(self, body):
         try:
             message_json = json.loads(body)
         except json.JSONDecodeError:
             logger.error("failed to parse json '%s'", body)
             message_json = None
         if not message_json:
-            return
+            return False
 
         logger.info(message_json)
 
@@ -190,16 +160,43 @@ class DownloaderLoop:
             reply_to_message_id = message_json['reply_to_message_id']
         except KeyError as e:
             logger.error("wrong json in to download queue %s %s", message_json, e)
-            return
+            return False
 
-        # start thread
-        t = threading.Thread
+        yt_podcast_downloader = YtPodcastDownloader()
+        result = yt_podcast_downloader.download_video(url)
+        bot_replier = TelegramBotReplier(bot_token, chat_id, reply_to_message_id)
 
-        # with self._mutex:
-        #     self._curr_url = url
-        #     self._curr_bot_token = bot_token
-        #     self._curr_chat_id = chat_id
-        #     self._reply_to_message_id = reply_to_message_id
+        if not result:
+            logger.error("failed to download video")
+            bot_replier.send_message("Извините, не удалось скачать данное видео.")
+            return False
+        else:
+            result = bot_replier.send_audio(filename=result.filename, title=result.title):
+            os.remove(result.filename)
+            if not result:
+                bot_replier.send_message("Извините, не удалось отправить данное видео.")
+                return False
+            return True
+
+    def _do_work(self, ch, delivery_tag, body):
+        self._parse_download_send(body)
+
+        cb = functools.partial(self._ack_message, ch, delivery_tag)
+        ch.connection.add_callback_threadsafe(cb)
+
+    def _ack_message(self, ch, delivery_tag):
+        if ch.is_open:
+            ch.basic_ack(delivery_tag)
+        else:
+            logger.error("cant ack cause channel is already closed")
+            pass
+
+    def _on_message(self, ch, method, properties, body):
+
+        delivery_tag = method.delivery_tag
+        t = Thread(target=self._do_work, args=(ch, delivery_tag, body))
+        t.start()
+        self._threads.append(t)
 
 
 if __name__ == "__main__":
