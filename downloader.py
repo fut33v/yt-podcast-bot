@@ -162,18 +162,21 @@ class DownloaderLoop:
             logger.error("wrong json in to download queue %s %s", message_json, e)
             return False
 
+        bot_replier = TelegramBotReplier(bot_token, chat_id, reply_to_message_id)
+
         yt_podcast_downloader = YtPodcastDownloader()
         result = yt_podcast_downloader.download_video(url)
-        bot_replier = TelegramBotReplier(bot_token, chat_id, reply_to_message_id)
 
         if not result:
             logger.error("failed to download video")
             bot_replier.send_message("Извините, не удалось скачать данное видео.")
             return False
         else:
-            result = bot_replier.send_audio(filename=result.filename, title=result.title)
-            os.remove(result.filename)
-            if not result:
+            filename = result.filename
+            title = result.title
+            ret = bot_replier.send_audio(filename=filename, title=title)
+            os.remove(filename)
+            if not ret:
                 bot_replier.send_message("Извините, не удалось отправить данное видео.")
                 return False
             return True
