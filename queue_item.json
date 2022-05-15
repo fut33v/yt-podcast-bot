@@ -1,5 +1,6 @@
 {
     "url": "https://www.youtube.com/watch?v=P1qBe_TIXhM",
-    "bot_token":"",
-    "chat_id": "@ytpodcastbot1"
+    "bot_token": "",
+    "chat_id": "@ytpodcastbot1",
+    "reply_to_message_id": 1234
 }
