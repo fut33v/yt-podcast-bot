@@ -33,7 +33,7 @@ def url_handler(update: telegram.Update, context):
     parameters = pika.ConnectionParameters(credentials=credentials, host=AMQP_HOST)
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
-    message = json.dumps({"url": update.effective_message.text, "chat_id": update.effective_chat.id, "bot_token": BOT_TOKEN})
+    message = json.dumps({"url": update.effective_message.text, "chat_id": update.effective_chat.id, "bot_token": BOT_TOKEN, "reply_to_message_id": update.effective_message.message_id})
     channel.basic_publish('', 'to_download_queue', message,
         pika.BasicProperties(content_type='text/plain', type='example'))
     connection.close()
