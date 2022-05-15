@@ -171,7 +171,7 @@ class DownloaderLoop:
             bot_replier.send_message("Извините, не удалось скачать данное видео.")
             return False
         else:
-            result = bot_replier.send_audio(filename=result.filename, title=result.title):
+            result = bot_replier.send_audio(filename=result.filename, title=result.title)
             os.remove(result.filename)
             if not result:
                 bot_replier.send_message("Извините, не удалось отправить данное видео.")
