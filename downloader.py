@@ -1,18 +1,19 @@
-from ast import arg
+# TODO: check if live or check duration
+# TODO: if too big for telegram (50 mb) separate with ffmpeg
+
 import subprocess
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
 import logging
-import pika
-import time
 import json
 import signal
 import os
-import telegram
-from yt_dlp import YoutubeDL
 import sys
-from threading import Thread, Lock
 import functools
+from threading import Thread, Lock
+from yt_dlp import YoutubeDL
+import telegram
+import pika
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -23,19 +24,14 @@ AMQP_PASS = os.getenv('AMQP_PASS', "password")
 AMQP_HOST = os.getenv('AMQP_HOST', "rabbit")
 
 
-# TODO: check if live or check duration
-# if too big for telegram (50 mb) separate with ffmpeg
-# send messages to user
-# log to file and may be docker compose volume for it
-
 class GracefulKiller:
-  kill_now = False
-  def __init__(self):
-    signal.signal(signal.SIGINT, self.exit_gracefully)
-    signal.signal(signal.SIGTERM, self.exit_gracefully)
+    kill_now = False
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
 
-  def exit_gracefully(self, *args):
-    self.kill_now = True
+    def exit_gracefully(self, *args):
+        self.kill_now = True
 
 
 class DownloadedFile:
@@ -47,6 +43,16 @@ class DownloadedFile:
 class YtPodcastDownloader:
     def __init__(self):
         pass
+
+    def run_yt_dlp(self, filename, url, dl_format):
+        yt_dlp_process = subprocess.Popen(
+            ["yt-dlp", "-f", dl_format, "-o", filename, url],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        yt_dlp_process.wait()
+        with yt_dlp_process.stdout:
+            for line in iter(yt_dlp_process.stdout.readline, b''):
+                logger.info(line.decode("utf-8").strip())
+        return yt_dlp_process.returncode
 
     def download_video(self, url: str) -> DownloadedFile:
         parsed_url = urlparse(url)
@@ -61,17 +67,13 @@ class YtPodcastDownloader:
             video_id = parsed_url.path[1:]
 
         filename = video_id
-        yt_dlp_process = subprocess.Popen(
-            ["yt-dlp", "-f", "139", "-o", filename, url],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        yt_dlp_process.wait()
-        with yt_dlp_process.stdout:
-            for line in iter(yt_dlp_process.stdout.readline, b''):
-                logger.info(line.decode("utf-8").strip())
-
-        logger.info("yt-dlp return code: %s", yt_dlp_process.returncode)
-        if yt_dlp_process.returncode != 0:
-            return None
+        returncode = self.run_yt_dlp(video_id, url, "139")
+        logger.info("yt-dlp -f 139 return code: %s", returncode)
+        if returncode != 0:
+            returncode = self.run_yt_dlp(video_id, url, "140")
+            logger.info("yt-dlp -f 140 return code: %s", returncode)
+            if returncode != 0:
+                return None
 
         title = None
         with YoutubeDL() as ydl:
@@ -92,8 +94,8 @@ class TelegramBotReplier:
         try:
             bot = telegram.Bot(token=self._bot_token)
             bot.send_message(chat_id=self._chat_id, text=message, reply_to_message_id=self._reply_to_message_id)
-        except telegram.TelegramError as e:
-            logger.error(e)
+        except telegram.TelegramError as error:
+            logger.error(error)
             return False
         return True
 
@@ -102,8 +104,8 @@ class TelegramBotReplier:
             try:
                 bot = telegram.Bot(token=self._bot_token)
                 bot.send_audio(chat_id=self._chat_id, audio=f, title=title, timeout=300, reply_to_message_id=self._reply_to_message_id)
-            except telegram.error.TelegramError as e:
-                logger.error(e)
+            except telegram.error.TelegramError as error:
+                logger.error(error)
                 return False
         return True
 
@@ -158,8 +160,8 @@ class DownloaderLoop:
             bot_token = message_json['bot_token']
             chat_id = message_json['chat_id']
             reply_to_message_id = message_json['reply_to_message_id']
-        except KeyError as e:
-            logger.error("wrong json in to download queue %s %s", message_json, e)
+        except KeyError as error:
+            logger.error("wrong json in to download queue %s %s", message_json, error)
             return False
 
         bot_replier = TelegramBotReplier(bot_token, chat_id, reply_to_message_id)
@@ -192,10 +194,8 @@ class DownloaderLoop:
             ch.basic_ack(delivery_tag)
         else:
             logger.error("cant ack cause channel is already closed")
-            pass
 
     def _on_message(self, ch, method, properties, body):
-
         delivery_tag = method.delivery_tag
         t = Thread(target=self._do_work, args=(ch, delivery_tag, body))
         t.start()
