@@ -1,5 +1,4 @@
 # TODO: check if live or check duration
-# TODO: if too big for telegram (50 mb) separate with ffmpeg
 
 import subprocess
 from urllib.parse import urlparse
@@ -11,9 +10,13 @@ import os
 import sys
 import functools
 from threading import Thread, Lock
+
 from yt_dlp import YoutubeDL
 import telegram
 import pika
+
+from ffprobe import get_duration
+from ffmpeg import divide_audio_by_hour
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -66,11 +69,11 @@ class YtPodcastDownloader:
         else:
             video_id = parsed_url.path[1:]
 
-        filename = video_id
-        returncode = self.run_yt_dlp(video_id, url, "139")
+        filename = f"{video_id}.m4a"
+        returncode = self.run_yt_dlp(filename, url, "139")
         logger.info("yt-dlp -f 139 return code: %s", returncode)
         if returncode != 0:
-            returncode = self.run_yt_dlp(video_id, url, "140")
+            returncode = self.run_yt_dlp(filename, url, "140")
             logger.info("yt-dlp -f 140 return code: %s", returncode)
             if returncode != 0:
                 return None
@@ -88,7 +91,6 @@ class TelegramBotReplier:
         self._bot_token = bot_token
         self._chat_id = chat_id
         self._reply_to_message_id = reply_to_message_id
-        pass
 
     def send_message(self, message):
         try:
@@ -176,11 +178,22 @@ class DownloaderLoop:
         else:
             filename = result.filename
             title = result.title
-            ret = bot_replier.send_audio(filename=filename, title=title)
-            os.remove(filename)
-            if not ret:
-                bot_replier.send_message("Извините, не удалось отправить данное видео.")
-                return False
+            duration = get_duration(filename)
+            if duration < 60 * 60 * 2:
+                ret = bot_replier.send_audio(filename=filename, title=title)
+                os.remove(filename)
+                if not ret:
+                    bot_replier.send_message("Извините, не удалось отправить данное видео.")
+                    return False
+            else:
+                filenames = divide_audio_by_hour(filename, duration)
+                for part_fname in filenames:
+                    index = 1
+                    ret = bot_replier.send_audio(filename=part_fname, title=f"{title} часть {index}")
+                    os.remove(part_fname)
+                    if not ret:
+                        bot_replier.send_message("Извините, не удалось отправить данное видео.")
+                        return False
             return True
 
     def _do_work(self, ch, delivery_tag, body):
