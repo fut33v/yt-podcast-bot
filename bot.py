@@ -18,6 +18,7 @@ BOT_TOKEN = os.getenv('BOT_TOKEN', None)
 HISTORY_BOT_TOKEN = os.getenv('HISTORY_BOT_TOKEN', None)
 HISTORY_CHANNEL = os.getenv('HISTORY_CHANNEL', None)
 REPLY_TEXT = os.getenv('REPLY_TEXT', None)
+ADMIN = os.getenv('ADMIN', None)
 
 
 def start_handler(update, context):
@@ -40,11 +41,13 @@ def url_handler(update: telegram.Update, context: CallbackContext):
     history_message = f"@{update.effective_chat.username} {update.effective_chat.first_name} {update.effective_chat.last_name} {update.effective_message.text}"
 
     if REPLY_TEXT:
-        context.bot.send_message(update.effective_chat.id, REPLY_TEXT, telegram.ParseMode.MARKDOWN)
+        if ADMIN is None or ADMIN != update.effective_chat.username:
+            context.bot.send_message(update.effective_chat.id, REPLY_TEXT, telegram.ParseMode.MARKDOWN)
 
     if HISTORY_CHANNEL and HISTORY_BOT_TOKEN:
-        history_bot = telegram.Bot(HISTORY_BOT_TOKEN)
-        history_bot.send_message(HISTORY_CHANNEL, history_message)
+        if ADMIN is None or ADMIN != update.effective_chat.username:
+            history_bot = telegram.Bot(HISTORY_BOT_TOKEN)
+            history_bot.send_message(HISTORY_CHANNEL, history_message)
 
     credentials = pika.PlainCredentials(AMQP_USER, AMQP_PASS)
     parameters = pika.ConnectionParameters(credentials=credentials, host=AMQP_HOST)
