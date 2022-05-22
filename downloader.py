@@ -187,8 +187,8 @@ class DownloaderLoop:
                     return False
             else:
                 filenames = divide_audio_by_hour(filename, duration)
+                index = 1
                 for part_fname in filenames:
-                    index = 1
                     ret = bot_replier.send_audio(filename=part_fname, title=f"{title} часть {index}")
                     os.remove(part_fname)
                     if not ret:
