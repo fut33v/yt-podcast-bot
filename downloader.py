@@ -194,6 +194,7 @@ class DownloaderLoop:
                     if not ret:
                         bot_replier.send_message("Извините, не удалось отправить данное видео.")
                         return False
+                    index += 1
             return True
 
     def _do_work(self, ch, delivery_tag, body):
