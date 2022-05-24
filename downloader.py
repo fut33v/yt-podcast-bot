@@ -69,6 +69,7 @@ class YtPodcastDownloader:
         else:
             video_id = parsed_url.path[1:]
 
+        video_id = video_id.replace('-', '')
         filename = f"{video_id}.m4a"
         returncode = self.run_yt_dlp(filename, url, "139")
         logger.info("yt-dlp -f 139 return code: %s", returncode)
@@ -179,7 +180,7 @@ class DownloaderLoop:
             filename = result.filename
             title = result.title
             duration = get_duration(filename)
-            if duration < 60 * 60 * 2:
+            if duration is None or duration < 60 * 60 * 2:
                 ret = bot_replier.send_audio(filename=filename, title=title)
                 os.remove(filename)
                 if not ret:
