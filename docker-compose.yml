@@ -17,6 +17,9 @@ services:
       dockerfile: Dockerfile.bot
     command: sh -c "while ! curl -f rabbit:15672; do echo waiting for rabbit; sleep 10; done; python bot.py"
     environment:
+      - AMQP_USER: user
+      - AMQP_PASS: password
+      - AMQP_HOST: rabbit
       - BOT_TOKEN
       - HISTORY_BOT_TOKEN
       - HISTORY_CHANNEL

@@ -127,7 +127,7 @@ class DownloaderLoop:
 
     def run(self):
         credentials = pika.PlainCredentials(AMQP_USER, AMQP_PASS)
-        parameters = pika.ConnectionParameters(credentials=credentials, host=AMQP_HOST)
+        parameters = pika.ConnectionParameters(credentials=credentials, host=AMQP_HOST, heartbeat=36000)
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
         channel.basic_consume(queue='to_download_queue', on_message_callback=self._on_message)
